@@ -1,4 +1,4 @@
-// Firebase подключается через CDN в index.html.
+// aeirebase подключается через CDN в index.html.
 // ВАЖНО: этот файл НЕ является module.
 
 const firebaseConfig = {
@@ -24,7 +24,7 @@ const DEFAULT_GROUPS = {
   "ЭК-21": ["Чернов Егор", "Шилова Алина", "Щербаков Кирилл"]
 };
 
-const ADMIN_PASSWORD = "iip2025";
+const ADMIN_PASSWORD = "Hutao"; 
 
 // ===== STORAGE =====
 function readLocalJSON(key, fallback) {
@@ -41,7 +41,40 @@ let GROUPS = readLocalJSON('attendanceGroups', null) || structuredClone(DEFAULT_
 let data = readLocalJSON('attendanceData', {});
 let archive = readLocalJSON('attendanceArchive', {});
 let isAdmin = sessionStorage.getItem('isAdmin') === '1';
+// ===== Красивые модалки вместо alert/confirm =====
+function showConfirm(title, message) {
+  return new Promise(resolve => {
+    const old = document.querySelector('.confirm-overlay');
+    if (old) old.remove();
 
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-box">
+        <h3>${title}</h3>
+        <p>${message}</p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" id="confirmCancel">Отмена</button>
+          <button class="btn btn-primary" id="confirmOk">Да</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.classList.add('show'), 10);
+
+    const close = (result) => {
+      overlay.classList.remove('show');
+      setTimeout(() => overlay.remove(), 200);
+      resolve(result);
+    };
+
+    overlay.querySelector('#confirmOk').onclick = () => close(true);
+    overlay.querySelector('#confirmCancel').onclick = () => close(false);
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close(false);
+    };
+  });
+}
 function saveGroups() {
   localStorage.setItem('attendanceGroups', JSON.stringify(GROUPS));
   if (firebaseReady) {
@@ -105,6 +138,7 @@ async function initFirebaseData() {
         renderHome();
       } else {
         renderGroup();
+        
       }
     });
 
@@ -211,7 +245,6 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.search-box')) suggestions.classList.remove('show');
 });
 
-// ===== RENDER HOME =====
 function renderHome() {
   currentGroup = null;
   searchInput.value = '';
@@ -221,18 +254,16 @@ function renderHome() {
     content.innerHTML = `
       <div class="empty">
         <div class="empty-icon">📁</div>
-        <p>Нет групп. Добавьте через админ-панель ⚙️</p>
+        <p>Нет групп. Добавьте через админ-панель</p>
       </div>`;
     return;
   }
 
-  const icons = ['💻', '🖥️', '📊', '🔧', '📱', '🌐', '⚙️', '📈'];
   content.innerHTML = `
-    <div class="section-title">📚 Группы</div>
+    <div class="section-title">Группы</div>
     <div class="groups-grid">
-      ${groups.map((g, i) => `
+      ${groups.map(g => `
         <div class="group-card" onclick="selectGroup('${g}')">
-          <div class="icon">${icons[i % icons.length]}</div>
           <div class="name">${g}</div>
           <div class="count">${GROUPS[g].length} студентов</div>
         </div>
@@ -259,7 +290,6 @@ function renderGroup() {
   content.innerHTML = `
     <div class="card">
       <div class="top-bar">
-        <button class="back-btn" onclick="renderHome()">← Все группы</button>
         <button class="exit-btn" onclick="renderHome()">Выход</button>
       </div>
       <div class="group-header">
@@ -268,7 +298,7 @@ function renderGroup() {
         </div>
         <div class="date-picker">
           <label>Дата:</label>
-          <input type="date" id="dateInput" value="${currentDate}">
+          <input type="date" id="dateInput" value="${currentDate}" min="2023-09-01" max="2030-08-31">
           <button class="btn btn-secondary" onclick="resetDay()">Сбросить</button>
         </div>
       </div>
@@ -478,14 +508,21 @@ function countAbsences(group, student) {
   return Object.values(data[group]).filter(day => day[student]).length;
 }
 
-function resetDay() {
-  if (!confirm('Сбросить все отметки за ' + formatDate(currentDate) + '?')) return;
-  if (data[currentGroup]) delete data[currentGroup][currentDate];
+async function resetDay() {
+  const formatted = formatDate(currentDate);
+  const ok = await showConfirm(
+    'Сбросить день?',
+    `Удалить все отметки посещаемости за <strong>${formatted}</strong>?<br><br>Все «Отсутствует» за этот день будут сняты.`
+  );
+  if (!ok) return;
+
+  if (data[currentGroup]) {
+    delete data[currentGroup][currentDate];
+  }
   save();
   renderViewContent();
-  showToast('День сброшен');
+  showToast(`Отметки за ${formatted} сброшены`);
 }
-
 // ===== ADMIN =====
 function openAdmin() {
   const modal = document.getElementById('adminModal');
@@ -496,16 +533,40 @@ function openAdmin() {
     body.innerHTML = `
       <div class="form-group">
         <label>Пароль администратора</label>
-        <input type="password" id="adminPass" placeholder="Введите пароль" autofocus>
+        <div style="position: relative;">
+          <input type="password" id="adminPass" placeholder="Введите пароль" autofocus
+                 style="padding-right: 46px; width: 100%;">
+          <button type="button" id="togglePassBtn"
+                  style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+                         background: none; border: none; cursor: pointer; font-size: 1.2rem;
+                         color: var(--text-muted); padding: 4px 6px;">
+            👁
+          </button>
+        </div>
       </div>
-      <button class="btn btn-primary" style="width:100%" onclick="checkAdminPass()">Войти</button>
-      <p style="margin-top:14px;font-size:0.85rem;color:var(--text-muted);text-align:center">
-        Пароль по умолчанию: <code>iip2025</code>
-      </p>
+      <button class="btn btn-primary" style="width:100%; margin-top: 12px;" onclick="checkAdminPass()">Войти</button>
+      
     `;
-    document.getElementById('adminPass').addEventListener('keydown', e => {
+
+    // Показать / скрыть пароль
+    const toggleBtn = document.getElementById('togglePassBtn');
+    const passInput = document.getElementById('adminPass');
+
+    toggleBtn.addEventListener('click', () => {
+      if (passInput.type === 'password') {
+        passInput.type = 'text';
+        toggleBtn.textContent = '🙈';
+      } else {
+        passInput.type = 'password';
+        toggleBtn.textContent = '👁';
+      }
+    });
+
+    // Вход по Enter
+    passInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') checkAdminPass();
     });
+
   } else {
     renderAdminPanel();
   }
@@ -584,43 +645,99 @@ function renderAdminPanel() {
 }
 
 function addGroup() {
-  const name = prompt('Название новой группы (например, ИС-23):');
-  if (!name || !name.trim()) return;
-  const key = name.trim().toUpperCase();
-  if (GROUPS[key]) {
-    alert('Группа уже существует');
+  const body = document.getElementById('adminBody');
+
+  body.innerHTML = `
+    <button class="btn btn-secondary" style="margin-bottom:14px" onclick="renderAdminPanel()">← Назад</button>
+    
+    <div class="admin-section">
+      <h4>+ Новая группа</h4>
+      
+      <div class="form-group">
+        <label>Название группы</label>
+        <input type="text" id="newGroupName" placeholder="Например: ИС-23" autofocus>
+      </div>
+      
+      <div class="form-group">
+        <label>Студенты (каждый с новой строки)</label>
+        <textarea id="newGroupStudents" style="min-height: 180px;" placeholder="Иванов Иван&#10;Петрова Анна"></textarea>
+      </div>
+      
+      <div style="display: flex; gap: 10px; margin-top: 8px;">
+        <button class="btn btn-primary" onclick="createNewGroup()">Создать группу</button>
+        <button class="btn btn-secondary" onclick="renderAdminPanel()">Отмена</button>
+      </div>
+    </div>
+  `;
+}
+
+function createNewGroup() {
+  const nameInput = document.getElementById('newGroupName').value.trim();
+  const studentsText = document.getElementById('newGroupStudents').value;
+
+  if (!nameInput) {
+    alert('Введите название группы');
     return;
   }
+
+  const key = nameInput.toUpperCase();
+
+  if (GROUPS[key]) {
+    alert('Группа с таким названием уже существует');
+    return;
+  }
+
   if (archive[key]) {
-    if (!confirm(`Группа ${key} есть в архиве. Восстановить её оттуда?`)) return;
+    if (!confirm(`Группа ${key} есть в архиве. Восстановить её?`)) return;
     restoreGroup(key);
     return;
   }
-  GROUPS[key] = [];
+
+  const list = studentsText
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  GROUPS[key] = list;
   saveGroups();
   renderAdminPanel();
-  showToast('Группа добавлена');
+  showToast(`Группа ${key} создана (${list.length} студентов)`);
+  
   if (!currentGroup) renderHome();
 }
 
 function editGroup(groupName) {
   const students = GROUPS[groupName] || [];
-  const text = prompt(
-    `Студенты группы ${groupName} (каждый с новой строки):`,
-    students.join('\n')
-  );
-  if (text === null) return;
-  const list = text.split('\n').map(s => s.trim()).filter(Boolean);
-  GROUPS[groupName] = list;
-  saveGroups();
-  renderAdminPanel();
-  showToast('Группа обновлена');
-  if (currentGroup === groupName) renderGroup();
-  else if (!currentGroup) renderHome();
-}
+  const body = document.getElementById('adminBody');
 
-function deleteGroup(groupName) {
-  if (!confirm(`Переместить группу ${groupName} в архив?\n\nИстория посещаемости сохранится.`)) return;
+  body.innerHTML = `
+    <button class="btn btn-secondary" style="margin-bottom:14px" onclick="renderAdminPanel()">← Назад</button>
+    
+    <div class="admin-section">
+      <h4>Редактирование группы: ${groupName}</h4>
+      
+      <div class="form-group">
+        <label>Список студентов (каждый с новой строки)</label>
+        <textarea id="studentsText" style="min-height: 220px; font-size: 15px;" placeholder="Иванов Иван&#10;Петров Пётр&#10;Сидорова Анна">${students.join('\n')}</textarea>
+      </div>
+      
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+        <button class="btn btn-primary" onclick="saveGroupStudents('${groupName}')">Сохранить</button>
+        <button class="btn btn-secondary" onclick="renderAdminPanel()">Отмена</button>
+      </div>
+      
+      <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-muted);">
+        Просто вставь список — каждый студент с новой строки. Пустые строки будут проигнорированы.
+      </p>
+    </div>
+  `;
+}
+async function deleteGroup(groupName) {
+  const ok = await showConfirm(
+    'В архив?',
+    `Переместить группу <strong>${groupName}</strong> в архив?<br><br>История посещаемости сохранится.`
+  );
+  if (!ok) return;
 
   archive[groupName] = {
     students: GROUPS[groupName] ? [...GROUPS[groupName]] : [],
@@ -636,17 +753,45 @@ function deleteGroup(groupName) {
 
   renderAdminPanel();
   showToast('Группа перемещена в архив');
-  if (currentGroup === groupName) renderHome();
-  else if (!currentGroup) renderHome();
+  
+  if (currentGroup === groupName) {
+    renderHome();
+  } else if (!currentGroup) {
+    renderHome();
+  }
+}
+function saveGroupStudents(groupName) {
+  const text = document.getElementById('studentsText').value;
+  const list = text
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);           // убираем пустые строки
+
+  GROUPS[groupName] = list;
+  saveGroups();
+  renderAdminPanel();
+  showToast(`Группа ${groupName} обновлена (${list.length} чел.)`);
+  
+  if (currentGroup === groupName) {
+    renderGroup();
+  } else if (!currentGroup) {
+    renderHome();
+  }
 }
 
-function restoreGroup(groupName) {
+async function restoreGroup(groupName) {
   if (!archive[groupName]) return;
+  
   if (GROUPS[groupName]) {
-    alert('Такая группа уже есть среди активных');
+    await showConfirm('Ошибка', 'Такая группа уже есть среди активных');
     return;
   }
-  if (!confirm(`Восстановить группу ${groupName} из архива?`)) return;
+
+  const ok = await showConfirm(
+    'Восстановить группу?',
+    `Вернуть группу <strong>${groupName}</strong> из архива?`
+  );
+  if (!ok) return;
 
   const a = archive[groupName];
   GROUPS[groupName] = a.students || [];
@@ -663,8 +808,13 @@ function restoreGroup(groupName) {
   if (!currentGroup) renderHome();
 }
 
-function purgeArchive(groupName) {
-  if (!confirm(`Удалить группу ${groupName} из архива НАВСЕГДА?\nИстория посещаемости будет потеряна.`)) return;
+async function purgeArchive(groupName) {
+  const ok = await showConfirm(
+    'Удалить навсегда?',
+    `Удалить группу <strong>${groupName}</strong> из архива навсегда?<br><br>История посещаемости будет потеряна.`
+  );
+  if (!ok) return;
+
   delete archive[groupName];
   saveArchive();
   renderAdminPanel();
@@ -737,8 +887,13 @@ function viewArchive(groupName) {
   `;
 }
 
-function resetAllData() {
-  if (!confirm('Удалить ВСЕ отметки посещаемости у активных групп? Группы и архив останутся.')) return;
+async function resetAllData() {
+  const ok = await showConfirm(
+    'Сбросить все отметки?',
+    'Удалить <strong>ВСЕ</strong> отметки посещаемости у активных групп?<br><br>Группы и архив останутся.'
+  );
+  if (!ok) return;
+
   data = {};
   save();
   showToast('Все отметки активных групп сброшены');
