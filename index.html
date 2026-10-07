@@ -19,8 +19,6 @@
       </div>
       <div class="header-actions">
         <button class="btn-icon" onclick="openAdmin()" title="Админ">⚙️</button>
-        <button class="btn-icon" onclick="exportData()" title="Экспорт">⬇️</button>
-        <button class="btn-icon" onclick="importData()" title="Импорт">⬆️</button>
       </div>
     </div>
   </header>
@@ -56,6 +54,12 @@
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
+  <!-- Firebase Compat SDK.
+       Не использовать type="module": script.js написан как обычный браузерный JS. -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <!-- Наш основной JS -->
   <script src="script.js"></script>
 </body>
 </html>
