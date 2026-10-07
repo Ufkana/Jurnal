@@ -258,21 +258,87 @@ body {
   font-weight: 700;
 }
 
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
 .back-btn {
   background: none;
   border: none;
   color: var(--red);
-  font-size: 0.9rem;
+  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
-  padding: 0;
-  font-weight: 500;
+  padding: 8px 0;
+  font-weight: 600;
+  min-height: 44px;
 }
 
 .back-btn:hover { text-decoration: underline; }
+
+.exit-btn {
+  background: var(--red);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+  transition: background 0.2s;
+}
+
+.exit-btn:hover { background: var(--red-dark); }
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.nav-label {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--red);
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+  text-transform: capitalize;
+}
+
+.btn-nav {
+  background: #F5EDED;
+  color: var(--red);
+  border: 2px solid #E8D5D5;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.btn-nav:hover {
+  background: #FFE8E8;
+  border-color: var(--red);
+}
+
+.report-meta {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
 
 .date-picker {
   display: flex;
@@ -696,210 +762,288 @@ body {
   }
 }
 
-/* ===== RESPONSIVE: PHONE (≤ 600px) ===== */
+/* ===== RESPONSIVE: PHONE (≤ 600px) — larger UI ===== */
 @media (max-width: 600px) {
   .header {
-    padding: 12px 14px 14px;
+    padding: 14px 14px 16px;
   }
 
   .header-inner {
-    gap: 10px;
+    gap: 12px;
   }
 
   .logo {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
   }
 
   .header-text h1 {
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     line-height: 1.25;
   }
 
   .header-text p {
-    font-size: 0.7rem;
-    display: none; /* hide subtitle on very small screens */
-  }
-
-  .header-actions {
-    gap: 6px;
+    font-size: 0.72rem;
+    display: none;
   }
 
   .btn-icon {
-    width: 38px;
-    height: 38px;
-    font-size: 1rem;
-    border-radius: 9px;
-  }
-
-  .container {
-    padding: 14px 12px 32px;
-  }
-
-  .search-box {
-    margin-bottom: 16px;
-  }
-
-  .search-box input {
-    padding: 13px 14px 13px 44px;
-    font-size: 16px; /* prevents zoom on iOS */
+    width: 46px;
+    height: 46px;
+    font-size: 1.25rem;
     border-radius: 12px;
   }
 
+  .container {
+    padding: 16px 12px 40px;
+  }
+
+  .search-box {
+    margin-bottom: 18px;
+  }
+
+  .search-box input {
+    padding: 16px 16px 16px 48px;
+    font-size: 17px;
+    border-radius: 14px;
+    min-height: 54px;
+  }
+
   .search-icon {
-    left: 14px;
-    font-size: 1.1rem;
+    left: 16px;
+    font-size: 1.25rem;
   }
 
   .section-title {
-    font-size: 1rem;
-    margin-bottom: 12px;
+    font-size: 1.15rem;
+    margin-bottom: 14px;
   }
 
   .groups-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
   }
 
   .group-card {
-    padding: 16px 10px;
-    border-radius: 12px;
+    padding: 22px 12px;
+    border-radius: 14px;
   }
 
   .group-card .icon {
-    width: 42px;
-    height: 42px;
-    font-size: 1.2rem;
-    margin-bottom: 8px;
-    border-radius: 10px;
+    width: 52px;
+    height: 52px;
+    font-size: 1.45rem;
+    margin-bottom: 10px;
+    border-radius: 14px;
   }
 
   .group-card .name {
-    font-size: 0.95rem;
+    font-size: 1.1rem;
   }
 
   .group-card .count {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
   }
 
   .card {
-    padding: 16px 12px;
+    padding: 18px 14px;
+    border-radius: 14px;
+  }
+
+  .top-bar {
+    margin-bottom: 14px;
+  }
+
+  .back-btn {
+    font-size: 1.05rem;
+    min-height: 48px;
+  }
+
+  .exit-btn {
+    padding: 12px 20px;
+    font-size: 1rem;
+    min-height: 48px;
     border-radius: 12px;
   }
 
   .group-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
-    margin-bottom: 14px;
-    padding-bottom: 14px;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
   }
 
   .group-header h2 {
-    font-size: 1.25rem;
+    font-size: 1.4rem;
   }
 
   .date-picker {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .date-picker label {
+    font-size: 0.95rem;
+    width: 100%;
   }
 
   .date-picker input[type="date"] {
     flex: 1;
     min-width: 0;
-    padding: 10px 10px;
-    font-size: 15px;
+    padding: 12px 12px;
+    font-size: 16px;
+    min-height: 50px;
+  }
+
+  .date-picker .btn {
+    min-height: 50px;
+    font-size: 0.95rem;
+    padding: 12px 16px;
   }
 
   .tabs {
-    gap: 6px;
-    margin-bottom: 14px;
+    gap: 8px;
+    margin-bottom: 16px;
   }
 
   .tab {
     flex: 1;
     text-align: center;
-    padding: 10px 8px;
-    font-size: 0.85rem;
-    border-radius: 12px;
+    padding: 14px 10px;
+    font-size: 0.95rem;
+    border-radius: 14px;
+    min-height: 50px;
+  }
+
+  .nav-row {
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .nav-row .btn-nav {
+    width: 100%;
+    min-height: 50px;
+    font-size: 0.95rem;
+    padding: 12px 16px;
+  }
+
+  .nav-label {
+    font-size: 1.05rem;
+    order: -1;
+    width: 100%;
+    padding: 6px 0;
   }
 
   .student-row {
-    padding: 12px 10px;
-    gap: 10px;
-    border-radius: 10px;
+    padding: 16px 12px;
+    gap: 12px;
+    border-radius: 12px;
+    flex-wrap: wrap;
+  }
+
+  .student-info {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .student-name {
-    font-size: 0.95rem;
+    font-size: 1.05rem;
   }
 
   .student-stats {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
   }
 
   .toggle-btn {
-    min-width: 110px;
-    padding: 10px 12px;
-    font-size: 0.8rem;
-    border-radius: 10px;
-    flex-shrink: 0;
+    min-width: 130px;
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    border-radius: 12px;
+    min-height: 50px;
+    flex: 1 1 auto;
   }
 
   .summary {
-    font-size: 0.85rem;
-    gap: 8px 14px;
+    font-size: 0.95rem;
+    gap: 10px;
     flex-direction: column;
-  }
-
-  .sync-info {
-    padding: 12px 12px;
-    font-size: 0.8rem;
-    flex-direction: column;
-    gap: 6px;
   }
 
   .report-table {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
   }
 
   .report-table th,
   .report-table td {
-    padding: 8px 8px;
+    padding: 12px 10px;
+  }
+
+  .badge {
+    font-size: 0.9rem;
+    padding: 5px 12px;
+  }
+
+  .report-meta {
+    font-size: 0.95rem;
   }
 
   .modal {
     max-width: 100%;
     max-height: 92vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: 18px 18px 0 0;
     margin-top: auto;
   }
 
   .modal-header {
-    padding: 14px 16px;
-    border-radius: 16px 16px 0 0;
+    padding: 16px 18px;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .modal-header h3 {
+    font-size: 1.2rem;
   }
 
   .modal-body {
-    padding: 16px;
+    padding: 18px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 14px 16px;
+    font-size: 16px;
+    min-height: 50px;
   }
 
   .admin-list li {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 10px;
+    padding: 12px 0;
   }
 
   .admin-list li span:last-child {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
   }
 
   .admin-list li .btn-sm {
     flex: 1;
     text-align: center;
+    padding: 12px;
+    font-size: 0.9rem;
+    min-height: 46px;
+  }
+
+  .btn {
+    min-height: 50px;
+    font-size: 0.95rem;
+    padding: 12px 18px;
   }
 
   .toast {
@@ -908,6 +1052,8 @@ body {
     transform: translateY(100px);
     width: auto;
     text-align: center;
+    font-size: 1rem;
+    padding: 14px 20px;
   }
 
   .toast.show {
@@ -918,47 +1064,47 @@ body {
 /* ===== VERY SMALL PHONES (≤ 380px) ===== */
 @media (max-width: 380px) {
   .header-text h1 {
-    font-size: 0.95rem;
+    font-size: 1.05rem;
   }
 
   .btn-icon {
-    width: 34px;
-    height: 34px;
-    font-size: 0.95rem;
+    width: 44px;
+    height: 44px;
+    font-size: 1.15rem;
   }
 
   .groups-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 10px;
   }
 
   .group-card {
-    padding: 14px 8px;
+    padding: 18px 10px;
   }
 
   .group-card .icon {
-    width: 38px;
-    height: 38px;
-    font-size: 1.1rem;
-  }
-
-  .toggle-btn {
-    min-width: 100px;
-    padding: 9px 8px;
-    font-size: 0.75rem;
+    width: 48px;
+    height: 48px;
+    font-size: 1.3rem;
   }
 
   .student-row {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .student-info {
-    flex: 1 1 100%;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
 
   .toggle-btn {
     width: 100%;
+    min-width: 0;
+  }
+
+  .exit-btn {
+    padding: 12px 14px;
+    font-size: 0.9rem;
   }
 }
 
