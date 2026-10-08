@@ -117,26 +117,31 @@ function saveArchive() {
 
 async function initFirebaseData() {
   try {
-    const snapshot = await db.ref('/').once('value');
-    const cloud = snapshot.val() || {};
+    const groupsSnap = await db.ref('groups').once('value');
+const attendanceSnap = await db.ref('attendance').once('value');
+const archiveSnap = await db.ref('archive').once('value');
 
-    if (cloud.groups && typeof cloud.groups === 'object') {
-      GROUPS = cloud.groups;
-    } else {
-      await db.ref('groups').set(GROUPS);
-    }
+const cloudGroups = groupsSnap.val();
+const cloudAttendance = attendanceSnap.val();
+const cloudArchive = archiveSnap.val();
 
-    if (cloud.attendance && typeof cloud.attendance === 'object') {
-      data = cloud.attendance;
-    } else if (Object.keys(data).length > 0) {
-      await db.ref('attendance').set(data);
-    }
+if (cloudGroups && typeof cloudGroups === 'object') {
+  GROUPS = cloudGroups;
+} else {
+  await db.ref('groups').set(GROUPS);
+}
 
-    if (cloud.archive && typeof cloud.archive === 'object') {
-      archive = cloud.archive;
-    } else if (Object.keys(archive).length > 0) {
-      await db.ref('archive').set(archive);
-    }
+if (cloudAttendance && typeof cloudAttendance === 'object') {
+  data = cloudAttendance;
+} else if (Object.keys(data).length > 0) {
+  await db.ref('attendance').set(data);
+}
+
+if (cloudArchive && typeof cloudArchive === 'object') {
+  archive = cloudArchive;
+} else if (Object.keys(archive).length > 0) {
+  await db.ref('archive').set(archive);
+}
 
     localStorage.setItem('attendanceGroups', JSON.stringify(GROUPS));
     localStorage.setItem('attendanceData', JSON.stringify(data));
