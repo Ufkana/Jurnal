@@ -11,10 +11,13 @@
 
 <header class="header">
   <div class="header-inner">
-    <img src="logo.png" alt="IIP" class="logo" onclick="openAdmin()" title="Админ-панель" style="cursor: pointer;">
+    <img src="logo.png" alt="IIP" class="logo" style="cursor: pointer;" onclick="openAdmin()">
     <div class="header-text">
       <h1>Учёт посещаемости</h1>
       <p>Institute of Innovative Professions</p>
+    </div>
+    <div class="header-actions" id="headerActions">
+      <!-- Здесь будет кнопка Войти / профиль -->
     </div>
   </div>
 </header>
@@ -53,7 +56,8 @@
   <!-- Firebase Compat SDK.
        Не использовать type="module": script.js написан как обычный браузерный JS. -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
   <!-- Наш основной JS -->
   <script src="script.js"></script>
