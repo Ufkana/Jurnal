@@ -16,7 +16,20 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 let firebaseReady = false;
+// ===== ПРАВА =====
+function canEditAttendance(groupName) {
+  if (!currentUser) return false; // гость не вошёл
 
+  if (currentRole === 'admin' || currentRole === 'checker') {
+    return true;
+  }
+
+  if (currentRole === 'starosta') {
+    return currentUserGroup === groupName;
+  }
+
+  return false; // guest и всё остальное
+}
 // Текущий пользователь и его роль
 let currentUser = null;          // объект Firebase User
 let currentRole = 'guest';       // guest | starosta | checker | admin
@@ -31,7 +44,7 @@ const DEFAULT_GROUPS = {
   "ЭК-21": ["Чернов Егор", "Шилова Алина", "Щербаков Кирилл"]
 };
 
-const ADMIN_PASSWORD = "Hutao"; 
+
 
 // ===== STORAGE =====
 function readLocalJSON(key, fallback) {
@@ -47,7 +60,6 @@ function readLocalJSON(key, fallback) {
 let GROUPS = readLocalJSON('attendanceGroups', null) || structuredClone(DEFAULT_GROUPS);
 let data = readLocalJSON('attendanceData', {});
 let archive = readLocalJSON('attendanceArchive', {});
-let isAdmin = sessionStorage.getItem('isAdmin') === '1';
 // ===== Красивые модалки вместо alert/confirm =====
 function showConfirm(title, message) {
   return new Promise(resolve => {
@@ -162,10 +174,10 @@ async function initFirebaseData() {
       const value = snap.val();
       archive = (value && typeof value === 'object') ? value : {};
       localStorage.setItem('attendanceArchive', JSON.stringify(archive));
-      if (isAdmin) {
-        const modal = document.getElementById('adminModal');
-        if (modal && modal.classList.contains('show')) renderAdminPanel();
-      }
+      if (currentRole === 'admin') {
+  const modal = document.getElementById('adminModal');
+  if (modal && modal.classList.contains('show')) renderAdminPanel();
+}
     });
 
     renderHome();
@@ -441,6 +453,7 @@ function selectGroup(groupName) {
 }
 
 function renderGroup() {
+  
   if (!currentGroup || !GROUPS[currentGroup]) {
     renderHome();
     return;
@@ -456,10 +469,12 @@ function renderGroup() {
           <h2>${currentGroup}</h2>
         </div>
         <div class="date-picker">
-          <label>Дата:</label>
-          <input type="date" id="dateInput" value="${currentDate}" min="2023-09-01" max="2030-08-31">
-          <button class="btn btn-secondary" onclick="resetDay()">Сбросить</button>
-        </div>
+  <label>Дата:</label>
+  <input type="date" id="dateInput" value="${currentDate}" min="2023-09-01" max="2030-08-31">
+  ${canEditAttendance(currentGroup)
+    ? `<button class="btn btn-secondary" onclick="resetDay()">Сбросить</button>`
+    : ''}
+</div>
       </div>
 
       <div class="tabs">
@@ -503,12 +518,23 @@ function renderViewContent() {
 function renderDayView() {
   const students = GROUPS[currentGroup];
   const dayData = (data[currentGroup] && data[currentGroup][currentDate]) || {};
+  const canEdit = canEditAttendance(currentGroup);
 
   const rows = students.map(name => {
     const isAbsent = !!dayData[name];
     const totalAbsences = countAbsences(currentGroup, name);
-    // Правильное экранирование для onclick
     const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+    // Если можно редактировать — кнопка, иначе просто текст
+    const buttonHtml = canEdit
+      ? `<button class="toggle-btn ${isAbsent ? 'absent' : 'present'}"
+                 onclick="toggleAbsent('${safeName}')">
+           ${isAbsent ? '❌ Отсутствует' : '✓ Присутствует'}
+         </button>`
+      : `<span class="toggle-btn ${isAbsent ? 'absent' : 'present'}" style="cursor:default; opacity:0.85;">
+           ${isAbsent ? '❌ Отсутствует' : '✓ Присутствует'}
+         </span>`;
+
     return `
       <div class="student-row ${isAbsent ? 'absent' : ''}">
         <div class="student-info">
@@ -517,10 +543,7 @@ function renderDayView() {
             ${totalAbsences > 0 ? `Всего пропусков: ${totalAbsences}` : 'Нет пропусков'}
           </span>
         </div>
-        <button class="toggle-btn ${isAbsent ? 'absent' : 'present'}"
-                onclick="toggleAbsent('${safeName}')">
-          ${isAbsent ? '❌ Отсутствует' : '✓ Присутствует'}
-        </button>
+        ${buttonHtml}
       </div>
     `;
   }).join('');
@@ -541,7 +564,6 @@ function renderDayView() {
     </div>
   `;
 }
-
 // ===== PERIOD VIEWS =====
 function getPeriodDates(type) {
   const d = new Date(currentDate + 'T12:00:00');
@@ -647,8 +669,12 @@ function renderPeriodView(type) {
   `;
 }
 
-// ===== ACTIONS =====
 function toggleAbsent(studentName) {
+  if (!canEditAttendance(currentGroup)) {
+    showToast('У вас нет прав отмечать посещаемость');
+    return;
+  }
+
   if (!data[currentGroup]) data[currentGroup] = {};
   if (!data[currentGroup][currentDate]) data[currentGroup][currentDate] = {};
 
@@ -668,6 +694,11 @@ function countAbsences(group, student) {
 }
 
 async function resetDay() {
+  if (!canEditAttendance(currentGroup)) {
+    showToast('У вас нет прав сбрасывать отметки');
+    return;
+  }
+
   const formatted = formatDate(currentDate);
   const ok = await showConfirm(
     'Сбросить день?',
@@ -682,70 +713,22 @@ async function resetDay() {
   renderViewContent();
   showToast(`Отметки за ${formatted} сброшены`);
 }
-// ===== ADMIN =====
 function openAdmin() {
-  const modal = document.getElementById('adminModal');
-  const body = document.getElementById('adminBody');
-  modal.classList.add('show');
-
-  if (!isAdmin) {
-    body.innerHTML = `
-      <div class="form-group">
-        <label>Пароль администратора</label>
-        <div style="position: relative;">
-          <input type="password" id="adminPass" placeholder="Введите пароль" autofocus
-                 style="padding-right: 46px; width: 100%;">
-          <button type="button" id="togglePassBtn"
-                  style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-                         background: none; border: none; cursor: pointer; font-size: 1.2rem;
-                         color: var(--text-muted); padding: 4px 6px;">
-            👁
-          </button>
-        </div>
-      </div>
-      <button class="btn btn-primary" style="width:100%; margin-top: 12px;" onclick="checkAdminPass()">Войти</button>
-      
-    `;
-
-    // Показать / скрыть пароль
-    const toggleBtn = document.getElementById('togglePassBtn');
-    const passInput = document.getElementById('adminPass');
-
-    toggleBtn.addEventListener('click', () => {
-      if (passInput.type === 'password') {
-        passInput.type = 'text';
-        toggleBtn.textContent = '🙈';
-      } else {
-        passInput.type = 'password';
-        toggleBtn.textContent = '👁';
-      }
-    });
-
-    // Вход по Enter
-    passInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') checkAdminPass();
-    });
-
-  } else {
-    renderAdminPanel();
+  if (currentRole !== 'admin') {
+    showToast('Доступ только для администратора. Войдите через 🔑');
+    return;
   }
+
+  const modal = document.getElementById('adminModal');
+  modal.classList.add('show');
+  renderAdminPanel();
 }
 
 function closeAdmin() {
   document.getElementById('adminModal').classList.remove('show');
 }
 
-function checkAdminPass() {
-  const pass = document.getElementById('adminPass').value;
-  if (pass === ADMIN_PASSWORD) {
-    isAdmin = true;
-    sessionStorage.setItem('isAdmin', '1');
-    renderAdminPanel();
-    showToast('Вход выполнен');
-  } else {
-    alert('Неверный пароль');
-  }
-}
+
 
 function renderAdminPanel() {
   const body = document.getElementById('adminBody');
@@ -793,16 +776,211 @@ function renderAdminPanel() {
       </p>
       <ul class="admin-list">${archiveList || '<li>Архив пуст</li>'}</ul>
     </div>
-
+    <div class="admin-section">
+      <h4>👥 Пользователи и роли</h4>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px">
+        Сначала создай аккаунт в Firebase Console → Authentication → Users.<br>
+        Потом здесь назначь роль.
+      </p>
+      <div id="usersList">Загрузка...</div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="showAddUserRole()">+ Назначить роль</button>
+    </div>
     <div class="admin-section">
       <h4>⚠️ Опасная зона</h4>
       <button class="btn btn-danger" onclick="resetAllData()">Сбросить все отметки (активные группы)</button>
     </div>
+      loadUsersList();
 
-    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="logoutAdmin()">Выйти из админки</button>
+    
   `;
 }
+// ===== УПРАВЛЕНИЕ РОЛЯМИ =====
+async function loadUsersList() {
+  const container = document.getElementById('usersList');
+  if (!container) return;
 
+  try {
+    const snap = await db.ref('users').once('value');
+    const users = snap.val() || {};
+
+    const roleNames = {
+      admin: 'Админ',
+      checker: 'Отмечающий',
+      starosta: 'Староста',
+      guest: 'Гость'
+    };
+
+    const list = Object.entries(users).map(([uid, u]) => {
+      const roleLabel = roleNames[u.role] || u.role;
+      const groupInfo = u.role === 'starosta' && u.group ? ` · группа ${u.group}` : '';
+      return `
+        <li>
+          <span>
+            <strong>${u.email || uid}</strong><br>
+            <small style="color:var(--text-muted)">${roleLabel}${groupInfo}</small>
+          </span>
+          <span>
+            <button class="btn-sm btn-secondary" onclick="editUserRole('${uid}')">Изменить</button>
+            <button class="btn-sm btn-danger" onclick="removeUserRole('${uid}')">Удалить роль</button>
+          </span>
+        </li>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <ul class="admin-list">
+        ${list || '<li>Пользователей пока нет</li>'}
+      </ul>
+    `;
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = '<p style="color:var(--danger)">Ошибка загрузки пользователей</p>';
+  }
+}
+
+function showAddUserRole() {
+  const body = document.getElementById('adminBody');
+  const groupsOptions = Object.keys(GROUPS).sort()
+    .map(g => `<option value="${g}">${g}</option>`).join('');
+
+  body.innerHTML = `
+    <button class="btn btn-secondary" style="margin-bottom:14px" onclick="renderAdminPanel()">← Назад</button>
+
+    <div class="admin-section">
+      <h4>+ Назначить роль</h4>
+
+      <div class="form-group">
+        <label>UID пользователя (из Firebase Authentication)</label>
+        <input type="text" id="userUid" placeholder="Скопируй UID из Firebase Console">
+      </div>
+
+      <div class="form-group">
+        <label>Email (для удобства)</label>
+        <input type="email" id="userEmail" placeholder="email@example.com">
+      </div>
+
+      <div class="form-group">
+        <label>Роль</label>
+        <select id="userRole">
+          <option value="guest">Гость (только просмотр)</option>
+          <option value="starosta">Староста</option>
+          <option value="checker">Отмечающий</option>
+          <option value="admin">Админ</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="groupSelectWrap" style="display:none">
+        <label>Группа (только для старосты)</label>
+        <select id="userGroup">
+          <option value="">— выберите —</option>
+          ${groupsOptions}
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" onclick="saveUserRole()">Сохранить</button>
+        <button class="btn btn-secondary" onclick="renderAdminPanel()">Отмена</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('userRole').addEventListener('change', e => {
+    document.getElementById('groupSelectWrap').style.display =
+      e.target.value === 'starosta' ? 'block' : 'none';
+  });
+}
+
+async function saveUserRole(existingUid = null) {
+  const uid = existingUid || document.getElementById('userUid').value.trim();
+  const email = document.getElementById('userEmail')?.value.trim() || '';
+  const role = document.getElementById('userRole').value;
+  const group = role === 'starosta'
+    ? (document.getElementById('userGroup')?.value || null)
+    : null;
+
+  if (!uid) {
+    showToast('Укажите UID');
+    return;
+  }
+
+  if (role === 'starosta' && !group) {
+    showToast('Для старосты нужно выбрать группу');
+    return;
+  }
+
+  try {
+    await db.ref('users/' + uid).set({
+      email: email || null,
+      role,
+      group: group || null,
+      updatedAt: new Date().toISOString()
+    });
+    showToast('Роль сохранена');
+    renderAdminPanel();
+  } catch (e) {
+    console.error(e);
+    showToast('Ошибка: ' + e.message);
+  }
+}
+
+async function editUserRole(uid) {
+  const snap = await db.ref('users/' + uid).once('value');
+  const u = snap.val() || {};
+  const groupsOptions = Object.keys(GROUPS).sort()
+    .map(g => `<option value="${g}" ${u.group === g ? 'selected' : ''}>${g}</option>`).join('');
+
+  const body = document.getElementById('adminBody');
+  body.innerHTML = `
+    <button class="btn btn-secondary" style="margin-bottom:14px" onclick="renderAdminPanel()">← Назад</button>
+
+    <div class="admin-section">
+      <h4>Изменить роль</h4>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px">UID: ${uid}</p>
+
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="userEmail" value="${u.email || ''}">
+      </div>
+
+      <div class="form-group">
+        <label>Роль</label>
+        <select id="userRole">
+          <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>Гость</option>
+          <option value="starosta" ${u.role === 'starosta' ? 'selected' : ''}>Староста</option>
+          <option value="checker" ${u.role === 'checker' ? 'selected' : ''}>Отмечающий</option>
+          <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Админ</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="groupSelectWrap" style="display:${u.role === 'starosta' ? 'block' : 'none'}">
+        <label>Группа (для старосты)</label>
+        <select id="userGroup">
+          <option value="">— выберите —</option>
+          ${groupsOptions}
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" onclick="saveUserRole('${uid}')">Сохранить</button>
+        <button class="btn btn-secondary" onclick="renderAdminPanel()">Отмена</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('userRole').addEventListener('change', e => {
+    document.getElementById('groupSelectWrap').style.display =
+      e.target.value === 'starosta' ? 'block' : 'none';
+  });
+}
+
+async function removeUserRole(uid) {
+  const ok = await showConfirm('Удалить роль?', 'Пользователь станет гостем (только просмотр).');
+  if (!ok) return;
+
+  await db.ref('users/' + uid).remove();
+  showToast('Роль удалена');
+  renderAdminPanel();
+}
 function addGroup() {
   const body = document.getElementById('adminBody');
 
@@ -1059,12 +1237,6 @@ async function resetAllData() {
   if (currentGroup) renderGroup();
 }
 
-function logoutAdmin() {
-  isAdmin = false;
-  sessionStorage.removeItem('isAdmin');
-  closeAdmin();
-  showToast('Вы вышли из админки');
-}
 
 // Close modal on overlay click
 document.getElementById('adminModal').addEventListener('click', e => {
