@@ -2,6 +2,7 @@
 // ВАЖНО: этот файл НЕ является module.
 
 const firebaseConfig = {
+  
   apiKey: "AIzaSyDTtFgIkuSUseMHo3aNCE9i5YNNJRKR-u0",
   authDomain: "iip-attendance-8113a.firebaseapp.com",
   databaseURL: "https://iip-attendance-8113a-default-rtdb.europe-west1.firebasedatabase.app",
@@ -13,7 +14,13 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 let firebaseReady = false;
+
+// Текущий пользователь и его роль
+let currentUser = null;          // объект Firebase User
+let currentRole = 'guest';       // guest | starosta | checker | admin
+let currentUserGroup = null;     // для старосты — какая группа разрешена
 
 // ===== DATABASE =====
 const DEFAULT_GROUPS = {
@@ -173,6 +180,158 @@ async function initFirebaseData() {
 
 // ===== STATE =====
 let currentGroup = null;
+// ===== АВТОРИЗАЦИЯ =====
+
+// Следим за входом/выходом
+auth.onAuthStateChanged(async (user) => {
+  currentUser = user;
+
+  if (user) {
+    // Пользователь вошёл — загружаем его роль
+    await loadUserRole(user.uid);
+  } else {
+    // Пользователь вышел
+    currentRole = 'guest';
+    currentUserGroup = null;
+  }
+
+  updateHeaderUI();
+  // Обновляем интерфейс, если нужно
+  if (currentGroup) {
+    renderGroup();
+  } else {
+    renderHome();
+  }
+});
+
+// Загружаем роль пользователя из базы
+async function loadUserRole(uid) {
+  try {
+    const snap = await db.ref('users/' + uid).once('value');
+    const userData = snap.val();
+
+    if (userData && userData.role) {
+      currentRole = userData.role;               // admin / checker / starosta
+      currentUserGroup = userData.group || null; // только для старосты
+    } else {
+      // Если роли нет — считаем гостем
+      currentRole = 'guest';
+      currentUserGroup = null;
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки роли:', e);
+    currentRole = 'guest';
+    currentUserGroup = null;
+  }
+}
+
+// Обновляем кнопки в шапке
+function updateHeaderUI() {
+  const container = document.getElementById('headerActions');
+  if (!container) return;
+
+  if (currentUser) {
+    // Пользователь вошёл
+    const roleNames = {
+      admin: 'Админ',
+      checker: 'Проверяющий',
+      starosta: 'Староста',
+      guest: 'Гость'
+    };
+
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 0.85rem; opacity: 0.9;">
+          ${roleNames[currentRole] || 'Пользователь'}
+        </span>
+        <button class="btn-icon" onclick="logout()" title="Выйти">🚪</button>
+      </div>
+    `;
+  } else {
+    // Гость
+    container.innerHTML = `
+      <button class="btn-icon" onclick="openLogin()" title="Войти">🔑</button>
+    `;
+  }
+}
+
+// Открыть окно входа
+function openLogin() {
+  const body = document.getElementById('adminBody');
+  const modal = document.getElementById('adminModal');
+
+  body.innerHTML = `
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="email@example.com" autofocus>
+    </div>
+    <div class="form-group">
+      <label>Пароль</label>
+      <div style="position: relative;">
+        <input type="password" id="loginPass" placeholder="Пароль" style="padding-right: 46px;">
+        <button type="button" id="toggleLoginPass"
+                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+                       background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-muted);">
+          👁
+        </button>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%; margin-top: 8px;" onclick="doLogin()">Войти</button>
+    <p style="margin-top: 16px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+      Нет аккаунта? Обратитесь к администратору
+    </p>
+  `;
+
+  modal.classList.add('show');
+
+  // Показать/скрыть пароль
+  document.getElementById('toggleLoginPass').onclick = () => {
+    const input = document.getElementById('loginPass');
+    const btn = document.getElementById('toggleLoginPass');
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁';
+    }
+  };
+
+  // Enter для входа
+  document.getElementById('loginPass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+}
+
+// Вход
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+
+  if (!email || !password) {
+    showToast('Введите email и пароль');
+    return;
+  }
+
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    closeAdmin();
+    showToast('Вход выполнен');
+  } catch (error) {
+    console.error(error);
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      showToast('Неверный email или пароль');
+    } else {
+      showToast('Ошибка входа: ' + error.message);
+    }
+  }
+}
+
+// Выход
+function logout() {
+  auth.signOut();
+  showToast('Вы вышли');
+}
 let currentDate = getToday();
 let currentView = 'day'; // day | week | month
 
