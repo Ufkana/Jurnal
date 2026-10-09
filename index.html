@@ -17,49 +17,41 @@
       <p>Institute of Innovative Professions</p>
     </div>
     <div class="header-actions" id="headerActions">
-      <!-- Здесь будет кнопка Войти / профиль -->
+      <!-- кнопки входа/выхода рисует JS -->
     </div>
   </div>
 </header>
 
-  <div class="container">
-
-    <!-- SEARCH -->
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="search" placeholder="Поиск группы..." autocomplete="off">
-      <div class="suggestions" id="suggestions"></div>
-    </div>
-
-    <!-- MAIN CONTENT -->
-    <div id="content">
-      <!-- filled by JS -->
-    </div>
+<div class="container">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search" placeholder="Поиск группы..." autocomplete="off">
+    <div class="suggestions" id="suggestions"></div>
   </div>
 
-  <!-- ADMIN MODAL -->
-  <div class="modal-overlay" id="adminModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>⚙️ Админ-панель</h3>
-        <button class="modal-close" onclick="closeAdmin()">×</button>
-      </div>
-      <div class="modal-body" id="adminBody">
-        <!-- login or content -->
-      </div>
+  <div id="content">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<!-- ADMIN / LOGIN MODAL -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Админ-панель</h3>
+      <button class="modal-close" onclick="closeAdmin()">×</button>
+    </div>
+    <div class="modal-body" id="adminBody">
+      <!-- login or content -->
     </div>
   </div>
+</div>
 
-  <!-- TOAST -->
-  <div class="toast" id="toast"></div>
+<div class="toast" id="toast"></div>
 
-  <!-- Firebase Compat SDK.
-       Не использовать type="module": script.js написан как обычный браузерный JS. -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
-  <!-- Наш основной JS -->
-  <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
