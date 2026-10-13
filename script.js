@@ -557,10 +557,10 @@ function renderDayView() {
     const buttonHtml = canEdit
       ? `<button class="toggle-btn ${isAbsent ? 'absent' : 'present'}"
                  onclick="toggleAbsent('${safeName}')">
-           ${isAbsent ? '❌ Отсутствует' : '✓ Присутствует'}
+           ${isAbsent ? '❌ ' : '✓ '}
          </button>`
       : `<span class="toggle-btn ${isAbsent ? 'absent' : 'present'}" style="cursor:default; opacity:0.85;">
-           ${isAbsent ? '❌ Отсутствует' : '✓ Присутствует'}
+           ${isAbsent ? '❌ ' : '✓ '}
          </span>`;
 
     return `
