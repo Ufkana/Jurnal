@@ -149,6 +149,18 @@ function saveArchive() {
   }
 }
 
+/** Правильное склонение слова «студент» */
+function pluralStudents(n) {
+  n = Math.abs(n) | 0;
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+
+  if (mod100 >= 11 && mod100 <= 19) return `${n} студентов`;
+  if (mod10 === 1) return `${n} студент`;
+  if (mod10 >= 2 && mod10 <= 4) return `${n} студента`;
+  return `${n} студентов`;
+}
+
 async function initFirebaseData() {
   try {
     const groupsSnap = await db.ref('groups').once('value');
@@ -229,14 +241,15 @@ async function initFirebaseData() {
     }
 
     renderHome();
-    showToast('✓ Данные синхронизированы с Firebase');
+    showToast('✓ Данные синхронизированы с базой данных');
   } catch (error) {
     console.error('Firebase error:', error);
     firebaseReady = false;
     renderHome();
-    showToast('⚠️ Firebase недоступен — работаем локально');
+    showToast('⚠️ База данных недоступна.');
   }
 }
+
 async function loadUserRole(uid) {
   try {
     const snap = await db.ref('users/' + uid).once('value');
@@ -296,17 +309,17 @@ function openLogin() {
       <input type="email" id="loginEmail" placeholder="email@example.com" autofocus>
     </div>
     <div class="form-group">
-  <label>Пароль</label>
-  <div style="position:relative;">
-    <input type="password" id="loginPass" placeholder="Пароль" style="padding-right:46px;width:100%;">
-    <button type="button" class="pass-toggle" id="toggleLoginPass" title="Показать пароль">
-      <svg viewBox="0 0 24 24" id="eyeIcon" aria-hidden="true">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    </button>
-  </div>
-</div>
+      <label>Пароль</label>
+      <div style="position:relative;">
+        <input type="password" id="loginPass" placeholder="Пароль" style="padding-right:46px;width:100%;">
+        <button type="button" class="pass-toggle" id="toggleLoginPass" title="Показать пароль">
+          <svg viewBox="0 0 24 24" id="eyeIcon" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
     <button class="btn btn-primary" style="width:100%; margin-top: 8px;" onclick="doLogin()">Войти</button>
     <p style="margin-top: 16px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
       Нет аккаунта? Обратитесь к администратору
@@ -316,21 +329,21 @@ function openLogin() {
   modal.classList.add('show');
 
   const eyeOpen = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-const eyeOff = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+  const eyeOff = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
 
-document.getElementById('toggleLoginPass').onclick = () => {
-  const input = document.getElementById('loginPass');
-  const btn = document.getElementById('toggleLoginPass');
-  if (input.type === 'password') {
-    input.type = 'text';
-    btn.innerHTML = eyeOff;
-    btn.title = 'Скрыть пароль';
-  } else {
-    input.type = 'password';
-    btn.innerHTML = eyeOpen;
-    btn.title = 'Показать пароль';
-  }
-};
+  document.getElementById('toggleLoginPass').onclick = () => {
+    const input = document.getElementById('loginPass');
+    const btn = document.getElementById('toggleLoginPass');
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.innerHTML = eyeOff;
+      btn.title = 'Скрыть пароль';
+    } else {
+      input.type = 'password';
+      btn.innerHTML = eyeOpen;
+      btn.title = 'Показать пароль';
+    }
+  };
   document.getElementById('loginPass').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
   });
@@ -462,7 +475,7 @@ function renderHome() {
         return `
           <div class="group-card" onclick="selectGroup('${g}')">
             <div class="name">${g}</div>
-            <div class="count">${count} студентов</div>
+            <div class="count">${pluralStudents(count)}</div>
             ${curator ? `<div class="curator-mini">Куратор: ${curator}</div>` : ''}
           </div>
         `;
@@ -470,7 +483,7 @@ function renderHome() {
     </div>
   `;
 
-  updateHeaderUI();  // ← ПОСЛЕ строки, не внутри
+  updateHeaderUI();
 }
 
 function selectGroup(groupName) {
@@ -734,8 +747,24 @@ function toggleAbsent(studentName) {
   if (!day[studentName]) delete day[studentName];
   if (Object.keys(day).length === 0) delete data[currentGroup][currentDate];
 
-  save();
+  // Сразу обновляем интерфейс
   renderViewContent();
+
+  // Сохраняем локально
+  localStorage.setItem('attendanceData', JSON.stringify(data));
+
+  // Пишем в Firebase только нужный день (а не весь объект)
+  if (firebaseReady) {
+    const path = `attendance/${currentGroup}/${currentDate}`;
+    if (data[currentGroup] && data[currentGroup][currentDate]) {
+      db.ref(path).set(data[currentGroup][currentDate])
+        .catch(err => console.error('Firebase attendance:', err));
+    } else {
+      // день стал пустым — удаляем
+      db.ref(path).remove()
+        .catch(err => console.error('Firebase attendance remove:', err));
+    }
+  }
 }
 
 function countAbsences(group, student) {
@@ -767,7 +796,7 @@ async function resetDay() {
 // ===== ADMIN =====
 function openAdmin() {
   if (currentRole !== 'admin') {
-    showToast('Доступ только для администратора. Войдите через 🔑');
+    showToast('Ошибка: у вас нет прав администратора');
     return;
   }
 
@@ -778,6 +807,74 @@ function openAdmin() {
 
 function closeAdmin() {
   document.getElementById('adminModal').classList.remove('show');
+}
+
+// Создаём второго экземпляра Firebase, чтобы не разлогинивать текущего админа
+let secondaryApp = null;
+function getSecondaryAuth() {
+  if (!secondaryApp) {
+    secondaryApp = firebase.initializeApp(firebaseConfig, 'Secondary');
+  }
+  return secondaryApp.auth();
+}
+
+async function createAccountFromAdmin() {
+  const email = document.getElementById('newAccEmail')?.value.trim();
+  const password = document.getElementById('newAccPass')?.value;
+  const role = document.getElementById('newAccRole')?.value || 'guest';
+  const group = role === 'starosta'
+    ? (document.getElementById('newAccGroup')?.value || null)
+    : null;
+
+  if (!email || !password) {
+    showToast('Заполните email и пароль');
+    return;
+  }
+  if (password.length < 6) {
+    showToast('Пароль должен быть не меньше 6 символов');
+    return;
+  }
+  if (role === 'starosta' && !group) {
+    showToast('Для старосты нужно выбрать группу');
+    return;
+  }
+
+  try {
+    // Создаём через вторичный экземпляр, чтобы не разлогинить текущего админа
+    const secondaryAuth = getSecondaryAuth();
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+    const uid = cred.user.uid;
+
+    // Сразу выходим из вторичного аккаунта
+    await secondaryAuth.signOut();
+
+    // Сохраняем роль в базу
+    await db.ref('users/' + uid).set({
+      email,
+      role,
+      group: group || null,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser?.uid || null
+    });
+
+    showToast(`Аккаунт ${email} создан (${role})`);
+
+    // Очищаем форму
+    document.getElementById('newAccEmail').value = '';
+    document.getElementById('newAccPass').value = '';
+    document.getElementById('newAccRole').value = 'guest';
+    document.getElementById('newAccGroupWrap').style.display = 'none';
+
+    // Обновляем список
+    loadUsersList();
+  } catch (err) {
+    console.error(err);
+    let msg = 'Ошибка создания аккаунта';
+    if (err.code === 'auth/email-already-in-use') msg = 'Этот email уже зарегистрирован';
+    if (err.code === 'auth/invalid-email') msg = 'Некорректный email';
+    if (err.code === 'auth/weak-password') msg = 'Слишком слабый пароль';
+    showToast(msg);
+  }
 }
 
 function renderAdminPanel() {
@@ -832,20 +929,55 @@ function renderAdminPanel() {
     </div>
 
     <div class="admin-section">
-      <h4>Пользователи и роли</h4>
-      <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px">
-        Сначала создай аккаунт в Firebase Console → Authentication → Users.<br>
-        Потом здесь назначь роль.
+      <h4>Создать новый аккаунт</h4>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="newAccEmail" placeholder="user@example.com" autocomplete="off">
+      </div>
+      <div class="form-group" style="position:relative">
+        <label>Пароль (мин. 6 символов)</label>
+        <input type="password" id="newAccPass" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label>Роль</label>
+        <select id="newAccRole">
+          <option value="guest">Гость (только просмотр)</option>
+          <option value="starosta">Староста</option>
+          <option value="checker">Отмечающий</option>
+          <option value="admin">Админ</option>
+        </select>
+      </div>
+      <div class="form-group" id="newAccGroupWrap" style="display:none">
+        <label>Группа (для старосты)</label>
+        <select id="newAccGroup">
+          <option value="">— выберите —</option>
+          ${Object.keys(GROUPS).sort().map(g => `<option value="${g}">${g}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="createAccountFromAdmin()">Создать аккаунт</button>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px">
+        Аккаунт появится в Firebase Authentication, роль сохранится автоматически.
       </p>
-      <div id="usersList">Загрузка...</div>
-      <button class="btn btn-primary" style="margin-top:12px" onclick="showAddUserRole()">+ Назначить роль</button>
     </div>
 
     <div class="admin-section">
+  <h4>Пользователи и роли</h4>
+  <div id="usersList">Загрузка...</div>
+</div>
 
+    <div class="admin-section">
       <button class="btn btn-danger" onclick="resetAllData()">Сбросить все отметки (активные группы)</button>
     </div>
   `;
+
+  // Важно: этот код должен быть ПОСЛЕ присваивания innerHTML
+  const roleSelect = document.getElementById('newAccRole');
+  if (roleSelect) {
+    roleSelect.addEventListener('change', e => {
+      document.getElementById('newAccGroupWrap').style.display =
+        e.target.value === 'starosta' ? 'block' : 'none';
+    });
+  }
 
   loadUsersList();
 }
@@ -866,22 +998,28 @@ async function loadUsersList() {
       guest: 'Гость'
     };
 
-    const list = Object.entries(users).map(([uid, u]) => {
-      const roleLabel = roleNames[u.role] || u.role;
-      const groupInfo = u.role === 'starosta' && u.group ? ` · группа ${u.group}` : '';
-      return `
-        <li>
-          <span>
-            <strong>${u.email || uid}</strong><br>
-            <small style="color:var(--text-muted)">${roleLabel}${groupInfo}</small>
-          </span>
-          <span>
+   const list = Object.entries(users).map(([uid, u]) => {
+  const roleLabel = roleNames[u.role] || u.role;
+  const groupInfo = u.role === 'starosta' && u.group ? ` · группа ${u.group}` : '';
+  const isMe = currentUser && uid === currentUser.uid;
+
+  return `
+    <li>
+      <span>
+        <strong>${u.email || uid}</strong>${isMe ? ' <small style="color:var(--gold)">(вы)</small>' : ''}<br>
+        <small style="color:var(--text-muted)">${roleLabel}${groupInfo}</small>
+      </span>
+      <span>
+        ${isMe
+          ? `<span style="font-size:0.8rem;color:var(--text-muted)">нельзя менять себя</span>`
+          : `
             <button class="btn-sm btn-secondary" onclick="editUserRole('${uid}')">Изменить</button>
             <button class="btn-sm btn-danger" onclick="removeUserRole('${uid}')">Удалить роль</button>
-          </span>
-        </li>
-      `;
-    }).join('');
+          `}
+      </span>
+    </li>
+  `;
+}).join('');
 
     container.innerHTML = `
       <ul class="admin-list">
@@ -980,6 +1118,12 @@ async function saveUserRole(existingUid = null) {
 }
 
 async function editUserRole(uid) {
+  if (currentUser && uid === currentUser.uid) {
+    showToast('Нельзя менять роль своего аккаунта');
+    return;
+  }
+  // ... остальной код функции
+  
   const snap = await db.ref('users/' + uid).once('value');
   const u = snap.val() || {};
   const groupsOptions = Object.keys(GROUPS).sort()
@@ -1030,6 +1174,11 @@ async function editUserRole(uid) {
 }
 
 async function removeUserRole(uid) {
+  if (currentUser && uid === currentUser.uid) {
+    showToast('Нельзя удалить роль своего аккаунта');
+    return;
+  }
+  // ... остальной код функции
   const ok = await showConfirm('Удалить роль?', 'Пользователь станет гостем (только просмотр).');
   if (!ok) return;
 
@@ -1101,7 +1250,7 @@ function createNewGroup() {
   };
   saveGroups();
   renderAdminPanel();
-  showToast(`Группа ${key} создана (${list.length} студентов)`);
+  showToast(`Группа ${key} создана (${pluralStudents(list.length)})`);
 
   if (!currentGroup) renderHome();
 }
@@ -1324,6 +1473,7 @@ document.getElementById('adminModal').addEventListener('click', e => {
 const content = document.getElementById('content');
 renderHome();
 initFirebaseData();
+
 // ===== СЛЕДИМ ЗА ВХОДОМ / ВЫХОДОМ =====
 auth.onAuthStateChanged(async (user) => {
   currentUser = user;
