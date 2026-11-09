@@ -92,6 +92,7 @@ function readLocalJSON(key, fallback) {
 let GROUPS = normalizeGroups(readLocalJSON('attendanceGroups', null) || structuredClone(DEFAULT_GROUPS));
 let data = readLocalJSON('attendanceData', {});
 let archive = readLocalJSON('attendanceArchive', {});
+let schedule = readLocalJSON('attendanceSchedule', {});
 
 // ===== Красивые модалки =====
 function showConfirm(title, message) {
@@ -149,6 +150,13 @@ function saveArchive() {
   }
 }
 
+function saveSchedule() {
+  localStorage.setItem('attendanceSchedule', JSON.stringify(schedule));
+  if (firebaseReady && currentRole === 'admin') {
+    db.ref('schedule').set(schedule).catch(err => console.error('Firebase schedule:', err));
+  }
+}
+
 /** Правильное склонение слова «студент» */
 function pluralStudents(n) {
   n = Math.abs(n) | 0;
@@ -169,18 +177,15 @@ async function initFirebaseData() {
     const cloudGroups = groupsSnap.val();
     const cloudAttendance = attendanceSnap.val();
 
-    // Только читаем. Пишем в groups/attendance только если есть права (admin).
     if (cloudGroups && typeof cloudGroups === 'object') {
       GROUPS = normalizeGroups(cloudGroups);
     } else if (currentRole === 'admin') {
       await db.ref('groups').set(GROUPS);
     }
-    // если не admin и в облаке пусто — остаёмся на локальных GROUPS
 
     if (cloudAttendance && typeof cloudAttendance === 'object') {
       data = cloudAttendance;
     } else if (Object.keys(data).length > 0 && (currentRole === 'admin' || currentRole === 'checker' || currentRole === 'starosta')) {
-      // писать attendance могут admin / checker / starosta
       try {
         await db.ref('attendance').set(data);
       } catch (e) {
@@ -188,7 +193,6 @@ async function initFirebaseData() {
       }
     }
 
-    // archive — только для admin, ошибка не ломает старт
     try {
       const archiveSnap = await db.ref('archive').once('value');
       const cloudArchive = archiveSnap.val();
@@ -201,13 +205,26 @@ async function initFirebaseData() {
       console.warn('Archive недоступен:', e);
     }
 
+    // Расписание
+    try {
+      const scheduleSnap = await db.ref('schedule').once('value');
+      const cloudSchedule = scheduleSnap.val();
+      if (cloudSchedule && typeof cloudSchedule === 'object') {
+        schedule = cloudSchedule;
+      } else if (Object.keys(schedule).length > 0 && currentRole === 'admin') {
+        await db.ref('schedule').set(schedule);
+      }
+    } catch (e) {
+      console.warn('Schedule недоступен:', e);
+    }
+
     localStorage.setItem('attendanceGroups', JSON.stringify(GROUPS));
     localStorage.setItem('attendanceData', JSON.stringify(data));
     localStorage.setItem('attendanceArchive', JSON.stringify(archive));
+    localStorage.setItem('attendanceSchedule', JSON.stringify(schedule));
 
     firebaseReady = true;
 
-    // Реалтайм
     db.ref('groups').on('value', snap => {
       const value = snap.val();
       if (!value || typeof value !== 'object') return;
@@ -225,7 +242,12 @@ async function initFirebaseData() {
       if (currentGroup) renderViewContent();
     });
 
-    // archive слушаем только если admin (иначе permission denied)
+    db.ref('schedule').on('value', snap => {
+      const value = snap.val();
+      schedule = (value && typeof value === 'object') ? value : {};
+      localStorage.setItem('attendanceSchedule', JSON.stringify(schedule));
+    });
+
     if (currentRole === 'admin') {
       db.ref('archive').on('value', snap => {
         try {
@@ -274,7 +296,6 @@ function updateHeaderUI() {
   if (!container) return;
 
   const iconLogin = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`;
-
   const iconLogout = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
 
   if (currentUser) {
@@ -302,6 +323,7 @@ function updateHeaderUI() {
 function openLogin() {
   const body = document.getElementById('adminBody');
   const modal = document.getElementById('adminModal');
+  document.getElementById('modalTitle').textContent = 'Вход';
 
   body.innerHTML = `
     <div class="form-group">
@@ -417,7 +439,7 @@ function showToast(msg, ms = 2200) {
   setTimeout(() => t.classList.remove('show'), ms);
 }
 
-// ===== SEARCH =====
+// ===== SEARCH (группы + студенты) =====
 const searchInput = document.getElementById('search');
 const suggestions = document.getElementById('suggestions');
 
@@ -427,29 +449,102 @@ searchInput.addEventListener('input', () => {
     suggestions.classList.remove('show');
     return;
   }
-  const matches = Object.keys(GROUPS).filter(g => g.toLowerCase().includes(q));
-  if (matches.length === 0) {
+
+  const results = [];
+
+  Object.keys(GROUPS).forEach(g => {
+    if (g.toLowerCase().includes(q)) {
+      results.push({
+        type: 'group',
+        group: g,
+        label: g,
+        sub: pluralStudents(GROUPS[g].students.length)
+      });
+    }
+  });
+
+  Object.keys(GROUPS).forEach(g => {
+    GROUPS[g].students.forEach(name => {
+      if (name.toLowerCase().includes(q)) {
+        results.push({
+          type: 'student',
+          group: g,
+          name: name,
+          label: name,
+          sub: g
+        });
+      }
+    });
+  });
+
+  const unique = [];
+  const seen = new Set();
+  for (const r of results) {
+    const key = r.type === 'group' ? 'g:' + r.group : 's:' + r.group + '|' + r.name;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(r);
+    }
+  }
+
+  if (unique.length === 0) {
     suggestions.classList.remove('show');
     return;
   }
-  suggestions.innerHTML = matches.map(g =>
-    `<div class="suggestion-item" data-group="${g}">
-      <span>${g}</span>
-      <span>${GROUPS[g].students.length} чел.</span>
-    </div>`
-  ).join('');
+
+  suggestions.innerHTML = unique.slice(0, 12).map(r => {
+    if (r.type === 'group') {
+      return `<div class="suggestion-item" data-type="group" data-group="${r.group}">
+        <span><strong>${r.label}</strong></span>
+        <span>${r.sub}</span>
+      </div>`;
+    } else {
+      return `<div class="suggestion-item" data-type="student" data-group="${r.group}" data-name="${r.name}">
+        <span>${r.label}</span>
+        <span>${r.sub}</span>
+      </div>`;
+    }
+  }).join('');
+
   suggestions.classList.add('show');
 });
 
 suggestions.addEventListener('click', e => {
   const item = e.target.closest('.suggestion-item');
   if (!item) return;
-  selectGroup(item.dataset.group);
+
+  const type = item.dataset.type;
+  const group = item.dataset.group;
+
+  if (type === 'group') {
+    selectGroup(group);
+  } else {
+    selectGroup(group);
+    setTimeout(() => {
+      highlightStudent(item.dataset.name);
+    }, 150);
+  }
 });
 
 document.addEventListener('click', e => {
   if (!e.target.closest('.search-box')) suggestions.classList.remove('show');
 });
+
+function highlightStudent(name) {
+  const rows = document.querySelectorAll('.student-row');
+  rows.forEach(row => {
+    const nameEl = row.querySelector('.student-name');
+    if (nameEl && nameEl.textContent === name) {
+      row.style.outline = '2px solid var(--gold)';
+      row.style.background = '#FFF8E7';
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        row.style.outline = '';
+        row.style.background = '';
+      }, 3500);
+    }
+  });
+}
 
 function renderHome() {
   currentGroup = null;
@@ -522,6 +617,7 @@ function renderGroup() {
         <button class="tab ${currentView === 'day' ? 'active' : ''}" onclick="setView('day')">День</button>
         <button class="tab ${currentView === 'week' ? 'active' : ''}" onclick="setView('week')">Неделя</button>
         <button class="tab ${currentView === 'month' ? 'active' : ''}" onclick="setView('month')">Месяц</button>
+        <button class="tab ${currentView === 'journal' ? 'active' : ''}" onclick="setView('journal')">Журнал</button>
       </div>
 
       <div id="viewContent"></div>
@@ -550,9 +646,69 @@ function renderViewContent() {
     el.innerHTML = renderDayView();
   } else if (currentView === 'week') {
     el.innerHTML = renderPeriodView('week');
-  } else {
+  } else if (currentView === 'month') {
     el.innerHTML = renderPeriodView('month');
+  } else if (currentView === 'journal') {
+    el.innerHTML = renderJournalView();
   }
+}
+
+// ===== ЖУРНАЛ =====
+function renderJournalView() {
+  const groupData = data[currentGroup] || {};
+  const records = [];
+
+  Object.keys(groupData).forEach(date => {
+    const day = groupData[date];
+    if (!day) return;
+    Object.keys(day).forEach(name => {
+      if (day[name]) records.push({ date, name });
+    });
+  });
+
+  records.sort((a, b) => b.date.localeCompare(a.date));
+
+  if (records.length === 0) {
+    return `
+      <div class="empty" style="padding:40px 20px">
+        <div class="empty-icon">📋</div>
+        <p>В журнале пока нет отметок</p>
+      </div>
+    `;
+  }
+
+  const byDate = {};
+  records.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = [];
+    byDate[r.date].push(r.name);
+  });
+
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  const rows = dates.map(date => {
+    const names = byDate[date];
+    return `
+      <div class="journal-day">
+        <div class="journal-date">${formatDate(date)}</div>
+        <div class="journal-names">
+          ${names.map(n => `<span class="journal-name">${n}</span>`).join('')}
+        </div>
+        <div class="journal-count">${names.length}</div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="report-section">
+      <div class="report-meta" style="margin-bottom:14px">
+        Всего записей в журнале: <strong>${records.length}</strong> · 
+        Дней с пропусками: <strong>${dates.length}</strong>
+      </div>
+      <div class="journal-list">
+        ${rows}
+      </div>
+    </div>
+  `;
 }
 
 function renderDayView() {
@@ -647,7 +803,6 @@ function renderPeriodView(type) {
     ? `${formatDate(start.toISOString().split('T')[0])} – ${formatDate(end.toISOString().split('T')[0])}`
     : start.toLocaleString('ru', { month: 'long', year: 'numeric' });
 
-  // absences[name] = { count, days: ['2024-10-01', ...] }
   const absences = {};
   students.forEach(s => {
     absences[s] = { count: 0, days: [] };
@@ -747,20 +902,15 @@ function toggleAbsent(studentName) {
   if (!day[studentName]) delete day[studentName];
   if (Object.keys(day).length === 0) delete data[currentGroup][currentDate];
 
-  // Сразу обновляем интерфейс
   renderViewContent();
-
-  // Сохраняем локально
   localStorage.setItem('attendanceData', JSON.stringify(data));
 
-  // Пишем в Firebase только нужный день (а не весь объект)
   if (firebaseReady) {
     const path = `attendance/${currentGroup}/${currentDate}`;
     if (data[currentGroup] && data[currentGroup][currentDate]) {
       db.ref(path).set(data[currentGroup][currentDate])
         .catch(err => console.error('Firebase attendance:', err));
     } else {
-      // день стал пустым — удаляем
       db.ref(path).remove()
         .catch(err => console.error('Firebase attendance remove:', err));
     }
@@ -793,6 +943,507 @@ async function resetDay() {
   showToast(`Отметки за ${formatted} сброшены`);
 }
 
+// ===== ГЛАВНОЕ МЕНЮ =====
+function openMainMenu() {
+  const old = document.querySelector('.main-menu-overlay');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'main-menu-overlay';
+  overlay.id = 'mainMenuOverlay';
+
+  const isAdmin = currentRole === 'admin';
+
+  overlay.innerHTML = `
+    <div class="main-menu">
+      <div class="main-menu-header">
+        <h3>Меню</h3>
+        <button class="main-menu-close" onclick="closeMainMenu()">×</button>
+      </div>
+      <div class="main-menu-body">
+        <button class="menu-item" onclick="openSchedule()">
+          <div class="icon schedule">📅</div>
+          <div class="text">
+            Расписание
+            <div class="desc">${isAdmin ? 'Просмотр и редактирование' : 'Только просмотр'}</div>
+          </div>
+        </button>
+        
+        ${isAdmin ? `
+          <button class="menu-item" onclick="openAdminFromMenu()">
+            <div class="icon admin">⚙️</div>
+            <div class="text">
+              Админ-панель
+              <div class="desc">Группы, пользователи, архив</div>
+            </div>
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.classList.add('show'), 10);
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) closeMainMenu();
+  });
+}
+
+function closeMainMenu() {
+  const overlay = document.getElementById('mainMenuOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  setTimeout(() => overlay.remove(), 200);
+}
+
+function openAdminFromMenu() {
+  closeMainMenu();
+  openAdmin();
+}
+
+// ===== РАСПИСАНИЕ =====
+const DAYS = [
+  { key: 'monday', label: 'Понедельник' },
+  { key: 'tuesday', label: 'Вторник' },
+  { key: 'wednesday', label: 'Среда' },
+  { key: 'thursday', label: 'Четверг' },
+  { key: 'friday', label: 'Пятница' },
+  { key: 'saturday', label: 'Суббота' }
+];
+
+let scheduleMode = 'table'; // 'table' | 'group'
+let scheduleSelectedDay = 'monday';
+let scheduleSelectedGroup = null;
+
+function openSchedule() {
+  closeMainMenu();
+
+  // Создаём полноэкранный контейнер, если его ещё нет
+  let fs = document.getElementById('scheduleFullscreen');
+  if (!fs) {
+    fs = document.createElement('div');
+    fs.id = 'scheduleFullscreen';
+    fs.className = 'schedule-fullscreen';
+    document.body.appendChild(fs);
+  }
+
+  fs.innerHTML = `
+    <div class="schedule-topbar">
+      <h2>Расписание</h2>
+      
+      <div class="schedule-topbar-controls">
+        <div class="schedule-mode-btns">
+          <button class="btn ${scheduleMode === 'table' ? 'btn-primary' : 'btn-secondary'}" 
+                  onclick="setScheduleMode('table')">Общая таблица</button>
+          <button class="btn ${scheduleMode === 'group' ? 'btn-primary' : 'btn-secondary'}" 
+                  onclick="setScheduleMode('group')">По группам</button>
+        </div>
+        
+        <div id="scheduleSelectWrap"></div>
+      </div>
+      
+      <button class="schedule-close-btn" onclick="closeSchedule()" title="Закрыть">×</button>
+    </div>
+    
+    <div class="schedule-body" id="scheduleBody"></div>
+  `;
+
+  fs.classList.add('show');
+  renderScheduleSelect();
+  renderScheduleBody();
+}
+
+function closeSchedule() {
+  const fs = document.getElementById('scheduleFullscreen');
+  if (fs) fs.classList.remove('show');
+}
+
+function setScheduleMode(mode) {
+  scheduleMode = mode;
+  openSchedule();
+}
+
+function renderScheduleSelect() {
+  const wrap = document.getElementById('scheduleSelectWrap');
+  if (!wrap) return;
+
+  if (scheduleMode === 'table') {
+    wrap.innerHTML = `
+      <select id="scheduleDaySelect" onchange="scheduleSelectedDay=this.value; renderScheduleBody()">
+        ${DAYS.map(d => `<option value="${d.key}" ${d.key === scheduleSelectedDay ? 'selected' : ''}>${d.label}</option>`).join('')}
+      </select>
+    `;
+  } else {
+    const groups = Object.keys(GROUPS).sort();
+    if (!scheduleSelectedGroup || !GROUPS[scheduleSelectedGroup]) {
+      scheduleSelectedGroup = groups[0] || null;
+    }
+    wrap.innerHTML = `
+      <select id="scheduleGroupSelect" onchange="scheduleSelectedGroup=this.value; renderScheduleBody()">
+        ${groups.map(g => `<option value="${g}" ${g === scheduleSelectedGroup ? 'selected' : ''}>${g}</option>`).join('')}
+      </select>
+    `;
+  }
+}
+
+function renderScheduleBody() {
+  const body = document.getElementById('scheduleBody');
+  if (!body) return;
+
+  if (scheduleMode === 'table') {
+    renderAllGroupsTable(body);
+  } else {
+    renderOneGroupSchedule(body);
+  }
+}
+
+// ===== ОБЩАЯ ТАБЛИЦА (все группы) =====
+function renderAllGroupsTable(container) {
+  const dayKey = scheduleSelectedDay || 'monday';
+  const dayLabel = DAYS.find(d => d.key === dayKey)?.label || dayKey;
+  const groups = Object.keys(GROUPS).sort();
+  const canEdit = currentRole === 'admin';
+
+  // Собираем все времена
+  const allTimes = new Set();
+  groups.forEach(g => {
+    (schedule[g]?.[dayKey] || []).forEach(l => {
+      if (l.time) allTimes.add(l.time);
+    });
+  });
+  const times = Array.from(allTimes).sort();
+
+  let html = `
+    <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div style="font-size:1.05rem;">
+        <strong>${dayLabel}</strong>
+        <span style="color:var(--text-muted); font-size:0.9rem; margin-left:10px;">
+          групп: ${groups.length}
+        </span>
+      </div>
+      ${canEdit ? `
+        <div style="font-size:0.85rem; color:var(--text-muted);">
+          Чтобы редактировать — переключись в «По группам»
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  if (groups.length === 0) {
+    html += `<div class="empty"><div class="empty-icon">📁</div><p>Нет групп</p></div>`;
+    container.innerHTML = html;
+    return;
+  }
+
+  html += `<div class="schedule-table-wrap"><table class="schedule-table"><thead><tr>`;
+  html += `<th>Время</th>`;
+  groups.forEach(g => {
+    html += `<th>${g}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  if (times.length === 0) {
+    html += `
+      <tr>
+        <td colspan="${groups.length + 1}" style="text-align:center; padding:40px; color:var(--text-muted);">
+          На этот день пар пока нет
+        </td>
+      </tr>
+    `;
+  } else {
+    times.forEach(time => {
+      html += `<tr>`;
+      html += `<td>${time}</td>`;
+
+      groups.forEach(g => {
+        const lessons = (schedule[g]?.[dayKey] || []).filter(l => l.time === time);
+
+        if (lessons.length === 0) {
+          html += `<td class="schedule-empty-cell">—</td>`;
+        } else {
+          const cells = lessons.map(l => {
+            let cell = `<div class="schedule-cell-subject">${l.subject || '—'}</div>`;
+            if (l.room || l.teacher) {
+              cell += `<div class="schedule-cell-meta">`;
+              if (l.room) cell += `ауд. ${l.room}`;
+              if (l.teacher) cell += (l.room ? ' · ' : '') + l.teacher;
+              cell += `</div>`;
+            }
+            return cell;
+          }).join('<div style="height:8px;"></div>');
+
+          html += `<td>${cells}</td>`;
+        }
+      });
+
+      html += `</tr>`;
+    });
+  }
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
+
+// ===== ПО ГРУППАМ =====
+function renderOneGroupSchedule(container) {
+  const group = scheduleSelectedGroup || document.getElementById('scheduleGroupSelect')?.value;
+  if (!group) {
+    container.innerHTML = `<div class="empty"><p>Выберите группу</p></div>`;
+    return;
+  }
+
+  if (!schedule[group]) schedule[group] = {};
+  const canEdit = currentRole === 'admin';
+
+  let html = `
+    <div class="schedule-group-view">
+      <div style="margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <h3 style="margin:0; color:var(--red); font-size:1.3rem;">${group}</h3>
+        ${canEdit ? `
+          <button class="btn btn-primary" onclick="addLesson()">+ Добавить пару</button>
+        ` : `
+          <span style="font-size:0.85rem; color:var(--text-muted);">Только просмотр</span>
+        `}
+      </div>
+  `;
+
+  DAYS.forEach(day => {
+    const lessons = schedule[group][day.key] || [];
+
+    html += `
+      <div class="schedule-day">
+        <div class="schedule-day-title">
+          <span>${day.label}</span>
+          ${canEdit ? `<button class="btn-sm btn-secondary" onclick="addLesson('${day.key}')">+ Пара</button>` : ''}
+        </div>
+    `;
+
+    if (lessons.length === 0) {
+      html += `<div class="schedule-empty">Нет пар</div>`;
+    } else {
+      lessons.forEach((lesson, idx) => {
+        html += `
+          <div class="schedule-lesson">
+            <div class="schedule-time">${lesson.time || '—'}</div>
+            <div class="schedule-info">
+              <div class="schedule-subject">${lesson.subject || 'Без названия'}</div>
+              <div class="schedule-meta">
+                ${lesson.room ? `ауд. ${lesson.room}` : ''}
+                ${lesson.teacher ? ` · ${lesson.teacher}` : ''}
+              </div>
+            </div>
+            ${canEdit ? `
+              <div class="schedule-actions">
+                <button class="btn-sm btn-secondary" onclick="editLesson('${group}', '${day.key}', ${idx})">Изменить</button>
+                <button class="btn-sm btn-danger" onclick="deleteLesson('${group}', '${day.key}', ${idx})">×</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+    }
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function addLesson(dayKey = null) {
+  if (currentRole !== 'admin') {
+    showToast('Только администратор может изменять расписание');
+    return;
+  }
+
+  const group = scheduleSelectedGroup || document.getElementById('scheduleGroupSelect')?.value;
+  if (!group) {
+    showToast('Сначала выберите группу');
+    return;
+  }
+
+  // Используем обычную модалку для формы
+  const body = document.getElementById('adminBody');
+  const modal = document.getElementById('adminModal');
+  document.getElementById('modalTitle').textContent = 'Новая пара';
+
+  body.innerHTML = `
+    <div class="admin-section">
+      <h4>+ Новая пара · ${group}</h4>
+      
+      <div class="form-group">
+        <label>День недели</label>
+        <select id="lessonDay">
+          ${DAYS.map(d => `<option value="${d.key}" ${d.key === dayKey ? 'selected' : ''}>${d.label}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Время (например 09:00–10:30)</label>
+        <input type="text" id="lessonTime" placeholder="09:00–10:30" autofocus>
+      </div>
+      
+      <div class="form-group">
+        <label>Предмет</label>
+        <input type="text" id="lessonSubject" placeholder="Математика">
+      </div>
+      
+      <div class="form-group">
+        <label>Аудитория</label>
+        <input type="text" id="lessonRoom" placeholder="101">
+      </div>
+      
+      <div class="form-group">
+        <label>Преподаватель</label>
+        <input type="text" id="lessonTeacher" placeholder="Иванов И.И.">
+      </div>
+      
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" onclick="saveNewLesson()">Сохранить</button>
+        <button class="btn btn-secondary" onclick="closeAdmin()">Отмена</button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('show');
+}
+
+function saveNewLesson() {
+  if (currentRole !== 'admin') return;
+
+  const group = scheduleSelectedGroup || document.getElementById('scheduleGroupSelect')?.value 
+    || Object.keys(GROUPS).sort()[0];
+  const day = document.getElementById('lessonDay').value;
+  const time = document.getElementById('lessonTime').value.trim();
+  const subject = document.getElementById('lessonSubject').value.trim();
+  const room = document.getElementById('lessonRoom').value.trim();
+  const teacher = document.getElementById('lessonTeacher').value.trim();
+
+  if (!subject) {
+    showToast('Укажите название предмета');
+    return;
+  }
+
+  if (!schedule[group]) schedule[group] = {};
+  if (!schedule[group][day]) schedule[group][day] = [];
+
+  schedule[group][day].push({ time, subject, room, teacher });
+  schedule[group][day].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+  saveSchedule();
+  showToast('Пара добавлена');
+  closeAdmin();
+  renderScheduleBody();
+}
+
+function editLesson(group, dayKey, index) {
+  if (currentRole !== 'admin') {
+    showToast('Только администратор может изменять расписание');
+    return;
+  }
+
+  const lesson = schedule[group]?.[dayKey]?.[index];
+  if (!lesson) return;
+
+  const body = document.getElementById('adminBody');
+  const modal = document.getElementById('adminModal');
+  document.getElementById('modalTitle').textContent = 'Редактировать пару';
+
+  body.innerHTML = `
+    <div class="admin-section">
+      <h4>Редактировать пару · ${group}</h4>
+      
+      <div class="form-group">
+        <label>День недели</label>
+        <select id="lessonDay">
+          ${DAYS.map(d => `<option value="${d.key}" ${d.key === dayKey ? 'selected' : ''}>${d.label}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Время</label>
+        <input type="text" id="lessonTime" value="${lesson.time || ''}">
+      </div>
+      
+      <div class="form-group">
+        <label>Предмет</label>
+        <input type="text" id="lessonSubject" value="${lesson.subject || ''}">
+      </div>
+      
+      <div class="form-group">
+        <label>Аудитория</label>
+        <input type="text" id="lessonRoom" value="${lesson.room || ''}">
+      </div>
+      
+      <div class="form-group">
+        <label>Преподаватель</label>
+        <input type="text" id="lessonTeacher" value="${lesson.teacher || ''}">
+      </div>
+      
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" onclick="saveEditedLesson('${group}', '${dayKey}', ${index})">Сохранить</button>
+        <button class="btn btn-secondary" onclick="closeAdmin()">Отмена</button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('show');
+}
+
+function saveEditedLesson(oldGroup, oldDay, index) {
+  if (currentRole !== 'admin') return;
+
+  const newDay = document.getElementById('lessonDay').value;
+  const time = document.getElementById('lessonTime').value.trim();
+  const subject = document.getElementById('lessonSubject').value.trim();
+  const room = document.getElementById('lessonRoom').value.trim();
+  const teacher = document.getElementById('lessonTeacher').value.trim();
+
+  if (!subject) {
+    showToast('Укажите название предмета');
+    return;
+  }
+
+  if (schedule[oldGroup]?.[oldDay]) {
+    schedule[oldGroup][oldDay].splice(index, 1);
+    if (schedule[oldGroup][oldDay].length === 0) {
+      delete schedule[oldGroup][oldDay];
+    }
+  }
+
+  if (!schedule[oldGroup]) schedule[oldGroup] = {};
+  if (!schedule[oldGroup][newDay]) schedule[oldGroup][newDay] = [];
+  
+  schedule[oldGroup][newDay].push({ time, subject, room, teacher });
+  schedule[oldGroup][newDay].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+  saveSchedule();
+  showToast('Пара обновлена');
+  closeAdmin();
+  renderScheduleBody();
+}
+
+async function deleteLesson(group, dayKey, index) {
+  if (currentRole !== 'admin') {
+    showToast('Только администратор может изменять расписание');
+    return;
+  }
+
+  const ok = await showConfirm('Удалить пару?', 'Вы уверены, что хотите удалить эту пару из расписания?');
+  if (!ok) return;
+
+  if (schedule[group]?.[dayKey]) {
+    schedule[group][dayKey].splice(index, 1);
+    if (schedule[group][dayKey].length === 0) {
+      delete schedule[group][dayKey];
+    }
+  }
+
+  saveSchedule();
+  showToast('Пара удалена');
+  renderScheduleBody();
+}
 // ===== ADMIN =====
 function openAdmin() {
   if (currentRole !== 'admin') {
@@ -801,6 +1452,7 @@ function openAdmin() {
   }
 
   const modal = document.getElementById('adminModal');
+  document.getElementById('modalTitle').textContent = 'Админ-панель';
   modal.classList.add('show');
   renderAdminPanel();
 }
@@ -809,7 +1461,6 @@ function closeAdmin() {
   document.getElementById('adminModal').classList.remove('show');
 }
 
-// Создаём второго экземпляра Firebase, чтобы не разлогинивать текущего админа
 let secondaryApp = null;
 function getSecondaryAuth() {
   if (!secondaryApp) {
@@ -840,15 +1491,11 @@ async function createAccountFromAdmin() {
   }
 
   try {
-    // Создаём через вторичный экземпляр, чтобы не разлогинить текущего админа
     const secondaryAuth = getSecondaryAuth();
     const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
     const uid = cred.user.uid;
-
-    // Сразу выходим из вторичного аккаунта
     await secondaryAuth.signOut();
 
-    // Сохраняем роль в базу
     await db.ref('users/' + uid).set({
       email,
       role,
@@ -859,13 +1506,11 @@ async function createAccountFromAdmin() {
 
     showToast(`Аккаунт ${email} создан (${role})`);
 
-    // Очищаем форму
     document.getElementById('newAccEmail').value = '';
     document.getElementById('newAccPass').value = '';
     document.getElementById('newAccRole').value = 'guest';
     document.getElementById('newAccGroupWrap').style.display = 'none';
 
-    // Обновляем список
     loadUsersList();
   } catch (err) {
     console.error(err);
@@ -961,16 +1606,15 @@ function renderAdminPanel() {
     </div>
 
     <div class="admin-section">
-  <h4>Пользователи и роли</h4>
-  <div id="usersList">Загрузка...</div>
-</div>
+      <h4>Пользователи и роли</h4>
+      <div id="usersList">Загрузка...</div>
+    </div>
 
     <div class="admin-section">
       <button class="btn btn-danger" onclick="resetAllData()">Сбросить все отметки (активные группы)</button>
     </div>
   `;
 
-  // Важно: этот код должен быть ПОСЛЕ присваивания innerHTML
   const roleSelect = document.getElementById('newAccRole');
   if (roleSelect) {
     roleSelect.addEventListener('change', e => {
@@ -982,7 +1626,6 @@ function renderAdminPanel() {
   loadUsersList();
 }
 
-// ===== УПРАВЛЕНИЕ РОЛЯМИ =====
 async function loadUsersList() {
   const container = document.getElementById('usersList');
   if (!container) return;
@@ -998,28 +1641,28 @@ async function loadUsersList() {
       guest: 'Гость'
     };
 
-   const list = Object.entries(users).map(([uid, u]) => {
-  const roleLabel = roleNames[u.role] || u.role;
-  const groupInfo = u.role === 'starosta' && u.group ? ` · группа ${u.group}` : '';
-  const isMe = currentUser && uid === currentUser.uid;
+    const list = Object.entries(users).map(([uid, u]) => {
+      const roleLabel = roleNames[u.role] || u.role;
+      const groupInfo = u.role === 'starosta' && u.group ? ` · группа ${u.group}` : '';
+      const isMe = currentUser && uid === currentUser.uid;
 
-  return `
-    <li>
-      <span>
-        <strong>${u.email || uid}</strong>${isMe ? ' <small style="color:var(--gold)">(вы)</small>' : ''}<br>
-        <small style="color:var(--text-muted)">${roleLabel}${groupInfo}</small>
-      </span>
-      <span>
-        ${isMe
-          ? `<span style="font-size:0.8rem;color:var(--text-muted)">нельзя менять себя</span>`
-          : `
-            <button class="btn-sm btn-secondary" onclick="editUserRole('${uid}')">Изменить</button>
-            <button class="btn-sm btn-danger" onclick="removeUserRole('${uid}')">Удалить роль</button>
-          `}
-      </span>
-    </li>
-  `;
-}).join('');
+      return `
+        <li>
+          <span>
+            <strong>${u.email || uid}</strong>${isMe ? ' <small style="color:var(--gold)">(вы)</small>' : ''}<br>
+            <small style="color:var(--text-muted)">${roleLabel}${groupInfo}</small>
+          </span>
+          <span>
+            ${isMe
+              ? `<span style="font-size:0.8rem;color:var(--text-muted)">нельзя менять себя</span>`
+              : `
+                <button class="btn-sm btn-secondary" onclick="editUserRole('${uid}')">Изменить</button>
+                <button class="btn-sm btn-danger" onclick="removeUserRole('${uid}')">Удалить роль</button>
+              `}
+          </span>
+        </li>
+      `;
+    }).join('');
 
     container.innerHTML = `
       <ul class="admin-list">
@@ -1032,62 +1675,10 @@ async function loadUsersList() {
   }
 }
 
-function showAddUserRole() {
-  const body = document.getElementById('adminBody');
-  const groupsOptions = Object.keys(GROUPS).sort()
-    .map(g => `<option value="${g}">${g}</option>`).join('');
-
-  body.innerHTML = `
-    <button class="btn btn-secondary" style="margin-bottom:14px" onclick="renderAdminPanel()">← Назад</button>
-
-    <div class="admin-section">
-      <h4>+ Назначить роль</h4>
-
-      <div class="form-group">
-        <label>UID пользователя (из Firebase Authentication)</label>
-        <input type="text" id="userUid" placeholder="Скопируй UID из Firebase Console">
-      </div>
-
-      <div class="form-group">
-        <label>Email (для удобства)</label>
-        <input type="email" id="userEmail" placeholder="email@example.com">
-      </div>
-
-      <div class="form-group">
-        <label>Роль</label>
-        <select id="userRole">
-          <option value="guest">Гость (только просмотр)</option>
-          <option value="starosta">Староста</option>
-          <option value="checker">Отмечающий</option>
-          <option value="admin">Админ</option>
-        </select>
-      </div>
-
-      <div class="form-group" id="groupSelectWrap" style="display:none">
-        <label>Группа (только для старосты)</label>
-        <select id="userGroup">
-          <option value="">— выберите —</option>
-          ${groupsOptions}
-        </select>
-      </div>
-
-      <div style="display:flex;gap:10px;margin-top:8px">
-        <button class="btn btn-primary" onclick="saveUserRole()">Сохранить</button>
-        <button class="btn btn-secondary" onclick="renderAdminPanel()">Отмена</button>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('userRole').addEventListener('change', e => {
-    document.getElementById('groupSelectWrap').style.display =
-      e.target.value === 'starosta' ? 'block' : 'none';
-  });
-}
-
 async function saveUserRole(existingUid = null) {
-  const uid = existingUid || document.getElementById('userUid').value.trim();
+  const uid = existingUid || document.getElementById('userUid')?.value.trim();
   const email = document.getElementById('userEmail')?.value.trim() || '';
-  const role = document.getElementById('userRole').value;
+  const role = document.getElementById('userRole')?.value;
   const group = role === 'starosta'
     ? (document.getElementById('userGroup')?.value || null)
     : null;
@@ -1122,8 +1713,7 @@ async function editUserRole(uid) {
     showToast('Нельзя менять роль своего аккаунта');
     return;
   }
-  // ... остальной код функции
-  
+
   const snap = await db.ref('users/' + uid).once('value');
   const u = snap.val() || {};
   const groupsOptions = Object.keys(GROUPS).sort()
@@ -1178,7 +1768,7 @@ async function removeUserRole(uid) {
     showToast('Нельзя удалить роль своего аккаунта');
     return;
   }
-  // ... остальной код функции
+
   const ok = await showConfirm('Удалить роль?', 'Пользователь станет гостем (только просмотр).');
   if (!ok) return;
 
