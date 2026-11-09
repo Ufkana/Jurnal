@@ -578,7 +578,7 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
-  z-index: 200;
+  z-index: 450;
   display: none;
   align-items: center;
   justify-content: center;
@@ -1384,4 +1384,455 @@ body {
   .period-days {
     font-size: 0.75rem;
   }
+}
+/* ===== ГЛАВНОЕ МЕНЮ ===== */
+.main-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 250;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.main-menu-overlay.show {
+  display: flex;
+}
+
+.main-menu {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 340px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+}
+
+.main-menu-header {
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: white;
+  padding: 18px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.main-menu-header h3 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.main-menu-close {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.main-menu-body {
+  padding: 12px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 14px;
+  border: none;
+  background: none;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+}
+
+.menu-item:hover {
+  background: #FFF5F5;
+}
+
+.menu-item .icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.menu-item .icon.schedule {
+  background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+  color: #1E7A3A;
+}
+
+.menu-item .icon.admin {
+  background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+  color: #E65100;
+}
+
+.menu-item .text {
+  flex: 1;
+}
+
+.menu-item .desc {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ===== РАСПИСАНИЕ ===== */
+.schedule-day {
+  margin-bottom: 18px;
+}
+
+.schedule-day-title {
+  font-weight: 700;
+  color: var(--red);
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #F5EDED;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.schedule-lesson {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #FFF9F5;
+  border: 1px solid #F0E0D0;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+
+.schedule-time {
+  font-weight: 700;
+  color: var(--red);
+  min-width: 95px;
+  font-size: 0.9rem;
+  padding-top: 2px;
+}
+
+.schedule-info {
+  flex: 1;
+}
+
+.schedule-subject {
+  font-weight: 600;
+  font-size: 0.98rem;
+  margin-bottom: 3px;
+}
+
+.schedule-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.schedule-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.schedule-empty {
+  text-align: center;
+  padding: 30px 16px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.schedule-group-select {
+  margin-bottom: 16px;
+}
+
+.schedule-group-select select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+}
+
+.schedule-group-select select:focus {
+  border-color: var(--red);
+}
+
+@media (max-width: 600px) {
+  .schedule-lesson {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .schedule-time {
+    min-width: auto;
+  }
+  .schedule-actions {
+    align-self: flex-end;
+  }
+}
+/* ===== ПОЛНОЭКРАННОЕ РАСПИСАНИЕ ===== */
+.schedule-fullscreen {
+  position: fixed;
+  inset: 0;
+  background: #F7F5F5;
+  z-index: 300;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.schedule-fullscreen.show {
+  display: flex;
+}
+
+.schedule-topbar {
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: white;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 18px rgba(139, 26, 43, 0.35);
+}
+
+.schedule-topbar h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.schedule-topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.schedule-topbar select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.95rem;
+  min-width: 140px;
+  background: rgba(255,255,255,0.95);
+  color: var(--text);
+}
+
+.schedule-mode-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.schedule-mode-btns .btn {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+.schedule-close-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 1.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.schedule-close-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.schedule-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Таблица на весь экран */
+.schedule-table-wrap {
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  overflow: auto;
+  max-height: calc(100vh - 140px);
+}
+
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  min-width: 800px;
+}
+
+.schedule-table th {
+  background: var(--red);
+  color: white;
+  padding: 14px 12px;
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  white-space: nowrap;
+}
+
+.schedule-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  background: var(--red-dark);
+  min-width: 110px;
+}
+
+.schedule-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #F0E0D0;
+  vertical-align: top;
+  background: white;
+}
+
+.schedule-table tr:nth-child(even) td {
+  background: #FFFBF8;
+}
+
+.schedule-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: #FFF5F0;
+  font-weight: 700;
+  color: var(--red);
+  z-index: 2;
+  border-right: 2px solid #F0E0D0;
+}
+
+.schedule-table tr:nth-child(even) td:first-child {
+  background: #FFEEE8;
+}
+
+.schedule-cell-subject {
+  font-weight: 600;
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+
+.schedule-cell-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.schedule-empty-cell {
+  color: #ccc;
+  text-align: center;
+}
+
+/* Режим "По группам" внутри полноэкранного */
+.schedule-group-view {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.schedule-group-view .schedule-day {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+@media (max-width: 700px) {
+  .schedule-topbar {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .schedule-topbar h2 {
+    font-size: 1.1rem;
+  }
+  .schedule-body {
+    padding: 12px;
+  }
+  .schedule-table {
+    font-size: 0.85rem;
+  }
+  .schedule-table th,
+  .schedule-table td {
+    padding: 10px 8px;
+  }
+}
+/* ===== ЗАГРУЗКА WORD ===== */
+.word-upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 28px 20px;
+  text-align: center;
+  background: #FFFaf8;
+  margin-bottom: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.word-upload-zone:hover,
+.word-upload-zone.dragover {
+  border-color: var(--red);
+  background: #FFF5F5;
+}
+.word-upload-zone input {
+  display: none;
+}
+.word-preview-list {
+  max-height: 380px;
+  overflow-y: auto;
+  margin: 14px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.word-preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f5f0f0;
+}
+.word-preview-item:last-child { border-bottom: none; }
+.word-preview-item label {
+  flex: 1;
+  cursor: pointer;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+.word-preview-item .day-tag {
+  font-size: 0.75rem;
+  background: #FFE8E8;
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
 }
